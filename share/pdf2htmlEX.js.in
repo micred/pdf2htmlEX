@@ -20,6 +20,8 @@ var pdf2htmlEX = (function(){
   };
   var DEFAULT_PAGES_TO_PRELOAD = 3;
 
+  var NR_PAGES_TO_PRERENDER_ON_ZOOM = 4;   // 0: disable render optimizations (less CPU usage but flickering on zoom)
+
   var pdf2htmlEX = new Object();
 
   var EPS = 1e-6;
@@ -79,16 +81,18 @@ var pdf2htmlEX = (function(){
       this.shown = false;
     },
     show : function(){
-      if(Math.abs(this.set_r - this.cur_r) > EPS) {
-        this.cur_r = this.set_r;
-        this.$d.css('transform', 'scale('+this.cur_r.toFixed(3)+')');
-      }
-      if (! this.shown) {
-        this.$b.addClass('opened');
-        this.shown = true;
+      if (this.loaded) {
+        if(Math.abs(this.set_r - this.cur_r) > EPS) {
+          this.cur_r = this.set_r;
+          this.$d.css('transform', 'scale('+this.cur_r.toFixed(3)+')');
+        }
+        if (! this.shown) {
+          this.$b.addClass('opened');
+          this.shown = true;
+        }
       }
     },
-    rescale : function(ratio) {
+    rescale : function(ratio, keep_shown) {
       if(ratio == 0) {
         this.set_r = this.default_r;
       } else {
@@ -96,7 +100,8 @@ var pdf2htmlEX = (function(){
       }
 
       /* wait for redraw */
-//      this.hide();
+      if (! keep_shown)
+        this.hide();
 
       this.$p.height(this.h * this.set_r);
       this.$p.width(this.w * this.set_r);
@@ -332,10 +337,24 @@ var pdf2htmlEX = (function(){
         offsetX = 0;
       if (! offsetY)
         offsetY = 0;
+
       // Save offset of the active page
       var active_page = this.get_active_page();
       var prev_offset = active_page.$p.offset();
       var old_scale = this.scale;
+
+      var prerendering_enabled = false;
+      if (NR_PAGES_TO_PRERENDER_ON_ZOOM > 0) {
+        // Look for which pages are visible pages to improve reactiveness
+        var min_visible, max_visible;
+        min_visible = max_visible = active_page.n;
+        while (min_visible > 0 && this.pages[min_visible].is_visible()) { min_visible-- }
+        while (max_visible < this.pages.length && this.pages[max_visible].is_visible()) { max_visible++ }
+
+        // If less then the threshold, enable prerendering
+        if (max_visible - min_visible - 2 < NR_PAGES_TO_PRERENDER_ON_ZOOM)
+          prerendering_enabled = true;
+      }
 
       // Set new scale
       if (is_relative)
@@ -346,21 +365,25 @@ var pdf2htmlEX = (function(){
       // Rescale pages
       var pl = this.pages;
       for(var i in pl) {
-        pl[i].rescale(this.scale);
+        if (prerendering_enabled && i > min_visible && i < max_visible) {
+          pl[i].rescale(this.scale, true);
+          pl[i].show();  // Force immediate refresh
+        } else
+          pl[i].rescale(this.scale);
       }
 
       // Correct container scroll to keep view aligned while zooming
       var correction_top = active_page.$p.offset().top - prev_offset.top;
-      this.$container.scrollTop( this.$container.scrollTop() + correction_top + offsetY);
+      this.$container.scrollTop( this.$container.scrollTop() + correction_top + offsetY );
 
       // Take the center of the view as a reference
       var prev_center_x = this.$container.width() / 2 - prev_offset.left;
       // Calculate the difference respect the center of the view after the zooming
       var correction_left = prev_center_x * (this.scale/old_scale - 1) + active_page.$p.offset().left - prev_offset.left;
       // Scroll the container accordingly to keep alignment to the initial reference
-      this.$container.scrollLeft( this.$container.scrollLeft() + correction_left + offsetX);
+      this.$container.scrollLeft( this.$container.scrollLeft() + correction_left + offsetX );
 
-      // Delayed rendering
+      // Delayed rendering for pages not already shown (see NR_PAGES_TO_PRERENDER_ON_ZOOM)
       this.schedule_render();
     },
 
