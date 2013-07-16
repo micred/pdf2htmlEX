@@ -187,7 +187,9 @@ void HTMLRenderer::startPage(int pageNum, GfxState *state, XRef * xref)
             << " " << CSS::HEIGHT_CN << hid
             << " " << CSS::PAGE_FRAME_CN
             << "\" data-page-no=\"" << pageNum << "\">"
-        << "<div class=\"" << CSS::PAGE_DECORATION_CN 
+        << "<div class=\"" << CSS::PAGE_DECORATION_CN
+            << " " << CSS::WIDTH_CN << wid
+            << " " << CSS::HEIGHT_CN << hid
             << "\">"
         << "<div class=\"" << CSS::PAGE_CONTENT_BOX_CN 
             << " " << CSS::PAGE_CONTENT_BOX_CN << pageNum
@@ -209,7 +211,9 @@ void HTMLRenderer::startPage(int pageNum, GfxState *state, XRef * xref)
         outputURL(f_pages.fs, cur_page_filename);
         f_pages.fs << "\">";
 
-        f_pages.fs << "<div class=\"" << CSS::PAGE_DECORATION_CN 
+        f_pages.fs << "<div class=\"" << CSS::PAGE_DECORATION_CN
+                << " " << CSS::WIDTH_CN << wid
+                << " " << CSS::HEIGHT_CN << hid
             << "\">";
     }
 
